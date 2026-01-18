@@ -76,7 +76,7 @@ def find_matches(item):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index1.html")
 
 @app.route("/report", methods=["GET", "POST"])
 def report():
