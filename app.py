@@ -99,6 +99,10 @@ def search():
         if item:
             matches = find_matches(item)
     return render_template("search.html", item=item, matches=matches)
+@app.route("/ping")
+def ping():
+    return "Flask server is alive!"
+
 
 # ================= RUN =================
 
