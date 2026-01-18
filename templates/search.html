@@ -1,0 +1,15 @@
+<h2>Search Item</h2>
+<form method="post">
+Item ID: <input name="item_id">
+<button>Search</button>
+</form>
+
+{% if item %}
+<h3>Item Details</h3>
+<p>{{item.name}} | {{item.category}} | {{item.location}} | {{item.status}}</p>
+
+<h3>Possible Matches</h3>
+{% for m in matches %}
+<p>{{m.name}} found at {{m.location}}</p>
+{% endfor %}
+{% endif %}

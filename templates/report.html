@@ -1,0 +1,27 @@
+<h2>Report Item</h2>
+<form method="post">
+Item ID: <input name="item_id"><br>
+Name: <input name="name"><br>
+
+Category:
+<select name="category">
+{% for c in categories %}
+<option>{{c}}</option>
+{% endfor %}
+</select><br>
+
+Location:
+<select name="location">
+{% for l in locations %}
+<option>{{l}}</option>
+{% endfor %}
+</select><br>
+
+Status:
+<select name="status">
+<option>Lost</option>
+<option>Found</option>
+</select><br>
+
+<button>Submit</button>
+</form>

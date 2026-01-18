@@ -1,0 +1,282 @@
+#include <windows.h>
+#include <stdio.h>
+#include <string.h>
+
+/* ================= CONSTANTS ================= */
+
+#define MAX_ITEMS 200
+
+/* Menu IDs */
+#define IDM_ADD      101
+#define IDM_SEARCH   102
+#define IDM_DISPLAY  103
+#define IDM_EXIT     104
+
+/* ================= DATA STRUCTURE ================= */
+
+struct Item {
+    int id;
+    char name[30];
+    char category[20];
+    char location[20];
+    char status[10];   // lost, found, returned
+    char contact[50];
+};
+
+struct Item items[MAX_ITEMS];
+int itemCount = 0;
+int nextID = 1001;
+
+/* ================= GUI CONTROLS ================= */
+
+HWND hName, hCategory, hLocation, hStatus, hContact;
+HWND hSearchName, hSearchLocation;
+
+/* ================= FILE HANDLING ================= */
+
+void saveItems() {
+    FILE *fp = fopen("items.txt", "w");
+    if (!fp) return;
+
+    for (int i = 0; i < itemCount; i++) {
+        fprintf(fp, "%d %s %s %s %s %s\n",
+            items[i].id,
+            items[i].name,
+            items[i].category,
+            items[i].location,
+            items[i].status,
+            items[i].contact);
+    }
+    fclose(fp);
+}
+
+void loadItems() {
+    FILE *fp = fopen("items.txt", "r");
+    if (!fp) return;
+
+    while (fscanf(fp, "%d %s %s %s %s %s",
+        &items[itemCount].id,
+        items[itemCount].name,
+        items[itemCount].category,
+        items[itemCount].location,
+        items[itemCount].status,
+        items[itemCount].contact) != EOF) {
+
+        if (items[itemCount].id >= nextID)
+            nextID = items[itemCount].id + 1;
+
+        itemCount++;
+    }
+    fclose(fp);
+}
+
+/* ================= ADD ITEM ================= */
+
+void addItem(HWND hwnd) {
+    char name[30], category[20], location[20], status[10], contact[50];
+
+    GetWindowText(hName, name, 30);
+    GetWindowText(hCategory, category, 20);
+    GetWindowText(hLocation, location, 20);
+    GetWindowText(hStatus, status, 10);
+    GetWindowText(hContact, contact, 50);
+
+    if (strlen(name) == 0 || strlen(location) == 0 || strlen(status) == 0) {
+        MessageBox(hwnd, "Please fill required fields!", "Error", MB_OK);
+        return;
+    }
+
+    items[itemCount].id = nextID++;
+    strcpy(items[itemCount].name, name);
+    strcpy(items[itemCount].category, category);
+    strcpy(items[itemCount].location, location);
+    strcpy(items[itemCount].status, status);
+    strcpy(items[itemCount].contact, contact);
+    itemCount++;
+
+    /* Notification logic */
+    if (strcmp(status, "found") == 0) {
+        for (int i = 0; i < itemCount - 1; i++) {
+            if (strcmp(items[i].name, name) == 0 &&
+                strcmp(items[i].location, location) == 0 &&
+                strcmp(items[i].status, "lost") == 0) {
+
+                char msg[200];
+                sprintf(msg,
+                    "MATCH FOUND!\nLost Item ID: %d\nOwner Contact: %s",
+                    items[i].id, items[i].contact);
+
+                MessageBox(hwnd, msg, "NOTIFICATION", MB_OK);
+            }
+        }
+    }
+
+    saveItems();
+    MessageBox(hwnd, "Item added successfully!", "Success", MB_OK);
+}
+
+/* ================= SEARCH & CLAIM ================= */
+
+void searchAndClaim(HWND hwnd) {
+    char name[30], location[20];
+    GetWindowText(hSearchName, name, 30);
+    GetWindowText(hSearchLocation, location, 20);
+
+    for (int i = 0; i < itemCount; i++) {
+        if (strcmp(items[i].name, name) == 0 &&
+            strcmp(items[i].location, location) == 0 &&
+            strcmp(items[i].status, "lost") == 0) {
+
+            char msg[300];
+            sprintf(msg,
+                "Item Found!\nID: %d\nCategory: %s\nContact: %s\n\nMark as Returned?",
+                items[i].id, items[i].category, items[i].contact);
+
+            if (MessageBox(hwnd, msg, "Claim Item", MB_YESNO) == IDYES) {
+                strcpy(items[i].status, "returned");
+                saveItems();
+                MessageBox(hwnd, "Item marked as RETURNED", "Success", MB_OK);
+            }
+            return;
+        }
+    }
+    MessageBox(hwnd, "Item not found", "Info", MB_OK);
+}
+
+/* ================= DISPLAY ITEMS ================= */
+
+void displayItems(HWND hwnd) {
+    char buffer[2000] = "";
+    for (int i = 0; i < itemCount; i++) {
+        char line[200];
+        sprintf(line,
+            "ID:%d  Name:%s  Location:%s  Status:%s\n",
+            items[i].id,
+            items[i].name,
+            items[i].location,
+            items[i].status);
+        strcat(buffer, line);
+    }
+    MessageBox(hwnd, buffer, "All Items", MB_OK);
+}
+
+/* ================= WINDOW PROCEDURE ================= */
+
+LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    switch (msg) {
+
+    case WM_COMMAND:
+        switch (LOWORD(wp)) {
+
+        case 1:
+        case IDM_ADD:
+            addItem(hwnd);
+            break;
+
+        case 2:
+        case IDM_SEARCH:
+            searchAndClaim(hwnd);
+            break;
+
+        case 3:
+        case IDM_DISPLAY:
+            displayItems(hwnd);
+            break;
+
+        case 4:
+        case IDM_EXIT:
+            PostQuitMessage(0);
+            break;
+        }
+        break;
+
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
+    }
+    return DefWindowProc(hwnd, msg, wp, lp);
+}
+
+/* ================= MAIN ================= */
+
+int WINAPI WinMain(HINSTANCE hInst, HINSTANCE, LPSTR, int nCmdShow) {
+
+    loadItems();
+
+    WNDCLASS wc = { 0 };
+    wc.lpfnWndProc = WindowProc;
+    wc.hInstance = hInst;
+    wc.lpszClassName = "LostFoundApp";
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+
+    RegisterClass(&wc);
+
+    HWND hwnd = CreateWindow(
+        "LostFoundApp",
+        "Smart Lost & Found System",
+        WS_OVERLAPPEDWINDOW,
+        100, 100, 720, 520,
+        NULL, NULL, hInst, NULL);
+
+    /* ================= MENU ================= */
+
+    HMENU hMenu = CreateMenu();
+    HMENU hFileMenu = CreateMenu();
+
+    AppendMenu(hFileMenu, MF_STRING, IDM_ADD, "Add Item");
+    AppendMenu(hFileMenu, MF_STRING, IDM_SEARCH, "Search & Claim");
+    AppendMenu(hFileMenu, MF_STRING, IDM_DISPLAY, "Display Items");
+    AppendMenu(hFileMenu, MF_SEPARATOR, 0, NULL);
+    AppendMenu(hFileMenu, MF_STRING, IDM_EXIT, "Exit");
+
+    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hFileMenu, "File");
+    SetMenu(hwnd, hMenu);
+
+    /* ================= INPUT CONTROLS ================= */
+
+    CreateWindow("STATIC", "Name", WS_VISIBLE | WS_CHILD, 20, 20, 80, 20, hwnd, NULL, hInst, NULL);
+    hName = CreateWindow("EDIT", "", WS_VISIBLE | WS_CHILD | WS_BORDER, 120, 20, 160, 20, hwnd, NULL, hInst, NULL);
+
+    CreateWindow("STATIC", "Category", WS_VISIBLE | WS_CHILD, 20, 50, 80, 20, hwnd, NULL, hInst, NULL);
+    hCategory = CreateWindow("EDIT", "", WS_VISIBLE | WS_CHILD | WS_BORDER, 120, 50, 160, 20, hwnd, NULL, hInst, NULL);
+
+    CreateWindow("STATIC", "Location", WS_VISIBLE | WS_CHILD, 20, 80, 80, 20, hwnd, NULL, hInst, NULL);
+    hLocation = CreateWindow("EDIT", "", WS_VISIBLE | WS_CHILD | WS_BORDER, 120, 80, 160, 20, hwnd, NULL, hInst, NULL);
+
+    CreateWindow("STATIC", "Status", WS_VISIBLE | WS_CHILD, 20, 110, 80, 20, hwnd, NULL, hInst, NULL);
+    hStatus = CreateWindow("EDIT", "", WS_VISIBLE | WS_CHILD | WS_BORDER, 120, 110, 160, 20, hwnd, NULL, hInst, NULL);
+
+    CreateWindow("STATIC", "Contact", WS_VISIBLE | WS_CHILD, 20, 140, 80, 20, hwnd, NULL, hInst, NULL);
+    hContact = CreateWindow("EDIT", "", WS_VISIBLE | WS_CHILD | WS_BORDER, 120, 140, 160, 20, hwnd, NULL, hInst, NULL);
+
+    CreateWindow("BUTTON", "Add Item", WS_VISIBLE | WS_CHILD, 320, 40, 140, 30, hwnd, (HMENU)1, hInst, NULL);
+
+    /* ================= SEARCH ================= */
+
+    CreateWindow("STATIC", "Search Name", WS_VISIBLE | WS_CHILD, 20, 210, 100, 20, hwnd, NULL, hInst, NULL);
+    hSearchName = CreateWindow("EDIT", "", WS_VISIBLE | WS_CHILD | WS_BORDER, 120, 210, 160, 20, hwnd, NULL, hInst, NULL);
+
+    CreateWindow("STATIC", "Search Location", WS_VISIBLE | WS_CHILD, 20, 240, 100, 20, hwnd, NULL, hInst, NULL);
+    hSearchLocation = CreateWindow("EDIT", "", WS_VISIBLE | WS_CHILD | WS_BORDER, 120, 240, 160, 20, hwnd, NULL, hInst, NULL);
+
+    CreateWindow("BUTTON", "Search & Claim", WS_VISIBLE | WS_CHILD, 320, 220, 160, 30, hwnd, (HMENU)2, hInst, NULL);
+
+    CreateWindow("BUTTON", "Display All", WS_VISIBLE | WS_CHILD, 320, 280, 160, 30, hwnd, (HMENU)3, hInst, NULL);
+    CreateWindow("BUTTON", "Exit", WS_VISIBLE | WS_CHILD, 320, 330, 160, 30, hwnd, (HMENU)4, hInst, NULL);
+
+    ShowWindow(hwnd, nCmdShow);
+
+    /* ================= ICON ================= */
+
+    HICON hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+    SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+
+    MSG msg;
+    while (GetMessage(&msg, NULL, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+    return 0;
+}
